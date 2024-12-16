@@ -1,26 +1,75 @@
+import pandas as pd
 import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Example feature vectors
-x_optimal = np.array([0.8, 1.5, 2.0, 1.2, 0.9])  # Optimal project
-x_new = np.array([0.7, 1.4, 1.8, 1.3, 1.0])       # New project
-weights = np.array([0.2, 0.3, 0.1, 0.25, 0.15])   # Feature importance
+# Load the CSV file
+def load_data(file_path):
+    data = pd.read_csv(file_path)
+    return data
 
-# 1. Euclidean Distance
-distance = np.linalg.norm(x_new - x_optimal)
-print(f"Euclidean Distance: {distance:.4f}")
+def preprocess_data(data):
+    # Separate target and features
+    y = data.iloc[:, 0].values  # Evaluation (target)
+    X = data.iloc[:, 1:].values  # Features (factors)
+    return X, y
 
-# 2. Weighted Distance
-weighted_distance = np.sqrt(np.sum(weights * (x_new - x_optimal) ** 2))
-print(f"Weighted Distance: {weighted_distance:.4f}")
+# Train the model
+def train_model(X, y):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    model = RandomForestRegressor(random_state=42)
+    model.fit(X_train, y_train)
+    
+    # Find the optimal project (highest predicted evaluation in the training set)
+    y_pred_train = model.predict(X_train)
+    optimal_idx = np.argmax(y_pred_train)
+    optimal_project = X_train[optimal_idx]
+    optimal_evaluation = y_pred_train[optimal_idx]
+    
+    print(f"Optimal Project Evaluation: {optimal_evaluation:.2f}")
+    return model, optimal_project, optimal_evaluation
 
-# 3. Cosine Similarity
-cos_sim = cosine_similarity([x_new], [x_optimal])[0, 0]
-print(f"Cosine Similarity: {cos_sim:.4f}")
+# Compare new project to optimal project
+def compare_to_optimal(new_project, optimal_project, feature_importances):
+    # Euclidean Distance
+    euclidean_distance = np.linalg.norm(new_project - optimal_project)
+    
+    # Weighted Distance
+    weighted_distance = np.sqrt(np.sum(feature_importances * (new_project - optimal_project) ** 2))
+    
+    # Cosine Similarity
+    cos_sim = cosine_similarity([new_project], [optimal_project])[0, 0]
+    
+    return euclidean_distance, weighted_distance, cos_sim
 
-# 4. Relative Evaluation Score
-# Assume model predictions for evaluation scores
-y_optimal = 4.8
-y_new = 4.2
-delta_evaluation = abs(y_optimal - y_new)
-print(f"Relative Evaluation Score Difference: {delta_evaluation:.4f}")
+# Main script
+if __name__ == "__main__":
+    # Load and preprocess data
+    file_path = "data.csv"  # Replace with your file path
+    data = load_data(file_path)
+    X, y = preprocess_data(data)
+
+    # Normalize features (optional but recommended for distance calculations)
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+
+    # Train the model and get the optimal project
+    model, optimal_project, optimal_evaluation = train_model(X, y)
+
+    # Feature importances (normalized for weighting distances)
+    feature_importances = model.feature_importances_
+    feature_importances /= feature_importances.sum()
+
+    # Define a new project for comparison
+    new_project_raw = np.random.rand(1, X.shape[1])  # Replace with real new project data
+    new_project = scaler.transform(new_project_raw)  # Scale the new project using the same scaler
+
+    # Compare new project to the optimal project
+    euclidean_dist, weighted_dist, cos_sim = compare_to_optimal(new_project[0], optimal_project, feature_importances)
+
+    print(f"Euclidean Distance: {euclidean_dist:.4f}")
+    print(f"Weighted Distance: {weighted_dist:.4f}")
+    print(f"Cosine Similarity: {cos_sim:.4f}")
